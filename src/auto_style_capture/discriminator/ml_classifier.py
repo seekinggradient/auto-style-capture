@@ -10,6 +10,68 @@ from ..features.extractor import extract_features
 
 logger = logging.getLogger(__name__)
 
+# Human-readable descriptions for stylometric features
+FEATURE_DESCRIPTIONS: dict[str, str] = {
+    # Lexical
+    "lex_ttr": "vocabulary diversity (unique words / total words)",
+    "lex_cttr": "corrected vocabulary diversity (adjusted for text length)",
+    "lex_hapax_ratio": "proportion of words used only once (higher = more varied vocabulary)",
+    "lex_hapax_dis_ratio": "proportion of words used exactly twice",
+    "lex_yules_k": "vocabulary constancy (lower = more repetitive word use)",
+    "lex_mean_word_length": "average word length in characters",
+    "lex_word_length_std": "word length variation (std dev)",
+    "lex_short_word_ratio": "proportion of short words (1-3 letters: a, I, the, and, but...)",
+    "lex_long_word_ratio": "proportion of long words (7+ letters: important, experience...)",
+    # Syntax
+    "syn_sent_length_mean": "average sentence length in words",
+    "syn_sent_length_median": "median sentence length in words",
+    "syn_sent_length_std": "sentence length variation",
+    "syn_sent_length_skew": "sentence length skew (positive = mostly short with some long)",
+    "syn_sent_length_p10": "10th percentile sentence length (shortest sentences)",
+    "syn_sent_length_p90": "90th percentile sentence length (longest sentences)",
+    "syn_question_ratio": "proportion of sentences that are questions",
+    "syn_exclamation_ratio": "proportion of sentences with exclamation marks",
+    "syn_declarative_ratio": "proportion of plain declarative sentences",
+    "syn_short_sent_ratio": "proportion of short sentences (5 words or fewer)",
+    "syn_long_sent_ratio": "proportion of long sentences (25+ words)",
+    "syn_para_length_mean": "average paragraph length in words",
+    "syn_sents_per_para_mean": "average sentences per paragraph",
+    "syn_total_sentences": "total sentence count in the passage",
+    # Punctuation
+    "punct_comma_rate": "commas per word",
+    "punct_semicolon_rate": "semicolons per word",
+    "punct_colon_rate": "colons per word",
+    "punct_period_rate": "periods per word",
+    "punct_exclamation_rate": "exclamation marks per word",
+    "punct_question_rate": "question marks per word",
+    "punct_dash_rate": "hyphens/dashes per word",
+    "punct_emdash_rate": "em dashes (\u2014) per word",
+    "punct_ellipsis_rate": "ellipses (...) per word",
+    "punct_contraction_rate": "contractions per word (don't, it's, can't...)",
+    "punct_density": "total punctuation marks per word",
+    "punct_open_paren_rate": "opening parentheses per word",
+    "punct_close_paren_rate": "closing parentheses per word",
+    "punct_double_quote_rate": 'double quote marks per word',
+    "punct_single_quote_rate": "single quote/apostrophe marks per word",
+    # Readability
+    "read_flesch_kincaid": "Flesch-Kincaid grade level (8 = 8th grade, 12 = college)",
+    "read_gunning_fog": "Gunning Fog index (years of education needed)",
+    "read_coleman_liau": "Coleman-Liau readability index",
+    "read_syllables_per_word": "average syllables per word",
+    "read_complex_word_ratio": "proportion of words with 3+ syllables",
+}
+
+
+def _describe_feature(name: str) -> str:
+    """Get human-readable description for a feature name."""
+    if name in FEATURE_DESCRIPTIONS:
+        return FEATURE_DESCRIPTIONS[name]
+    # Function word features
+    if name.startswith("lex_fw_"):
+        word = name.replace("lex_fw_", "")
+        return f'frequency of the word "{word}"'
+    return name
+
 
 @dataclass
 class MLResult:
@@ -96,8 +158,9 @@ class MLDiscriminator:
         for name, real_mean, gen_mean, effect, p_val in feature_gaps[:top_n]:
             direction = "too high" if gen_mean > real_mean else "too low"
             sig = "***" if p_val < 0.001 else "**" if p_val < 0.01 else "*"
+            desc = _describe_feature(name)
             feedback_lines.append(
-                f"- **{name}**: generated is {direction} "
+                f"- **{name}** ({desc}): generated is {direction} "
                 f"(real={real_mean:.4f}, gen={gen_mean:.4f}, effect={effect:.2f}) {sig}"
             )
             importances[name] = effect

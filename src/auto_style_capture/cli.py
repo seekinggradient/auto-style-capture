@@ -152,12 +152,13 @@ def seed(corpus, author, from_skill, model, verbose):
 @click.option("--corpus", type=click.Path(exists=True), required=True, multiple=True, help="Path to corpus directory (can specify multiple)")
 @click.option("--author", required=True, help="Author name")
 @click.option("--skill", type=click.Path(exists=True), default=None, help="Skill file to evaluate (default: latest version)")
-@click.option("--model", default="openai/gpt-5-mini", help="LLM model")
+@click.option("--model", default="openai/gpt-5-mini", help="LLM model for generation")
+@click.option("--judge-model", default=None, help="LLM model for judge (default: same as --model)")
 @click.option("--samples", default=5, type=int, help="Number of samples to generate per run")
 @click.option("--runs", default=1, type=int, help="Number of evaluation runs to average (reduces variance)")
 @click.option("--hypothesis", default=None, help="What you changed and why you expect it to help")
 @click.option("--verbose", "-v", is_flag=True, help="Enable debug logging")
-def evaluate(corpus, author, skill, model, samples, runs, hypothesis, verbose):
+def evaluate(corpus, author, skill, model, judge_model, samples, runs, hypothesis, verbose):
     """Evaluate a style skill against a corpus.
 
     Generates samples using the skill, runs the ensemble discriminator
@@ -202,7 +203,7 @@ def evaluate(corpus, author, skill, model, samples, runs, hypothesis, verbose):
     console.print()
 
     gen = Generator(llm, model)
-    disc = EnsembleDiscriminator(llm, model)
+    disc = EnsembleDiscriminator(llm, judge_model or model)
 
     # Load cached topics or extract new ones
     import json

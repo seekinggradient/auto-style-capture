@@ -1,6 +1,6 @@
 # Auto Style Capture
 
-A GAN-inspired adversarial system for capturing and emulating writing styles. An ensemble discriminator (ML classifier + LLM judge) evaluates how well generated text matches a target style, and a style skill document gets iteratively refined until the discriminator can't tell the difference.
+A GAN-inspired adversarial system for capturing and emulating writing styles. An ensemble discriminator (statistical style analysis + LLM judge) evaluates how well generated text matches a target style, and a style skill document gets iteratively refined until the discriminator can't tell the difference.
 
 No model fine-tuning required -- the output is a Markdown style guide that any LLM can follow.
 
@@ -8,17 +8,17 @@ No model fine-tuning required -- the output is a Markdown style guide that any L
 
 **Write like yourself.** Export your blog posts, journal entries, emails, or any writing you've done. Feed them in as a corpus and the system learns your voice -- sentence rhythms, vocabulary habits, punctuation patterns, the way you structure arguments. Then use the resulting style skill whenever you want an LLM to draft something that sounds like you, not like an AI.
 
-**Write like your favorite authors.** Have a writer whose style you admire? Collect their public writing into a corpus directory and let the system distill their style into a concrete, actionable writing guide. Useful for learning what makes a particular voice work.
+**Write like your favorite authors.** Collect a writer's public writing into a corpus directory and let the system distill their style into a concrete, actionable writing guide.
 
-**Blend multiple voices.** Pass multiple corpus directories and the system balances them equally. Want Paul Graham's directness mixed with the enthusiasm of a technical explainer? Combine corpora and the discriminator optimizes for the blend. Each source is automatically weighted so no single voice dominates.
+**Blend multiple voices.** Pass multiple corpus directories and the system balances them equally. Combine corpora from different writers and the discriminator optimizes for the blend. Each source is automatically weighted so no single voice dominates.
 
-**Beat the AI detector.** The system specifically identifies and corrects the statistical fingerprints that make AI-generated text detectable -- overuse of "and," artificially diverse vocabulary, missing contractions, uniform sentence lengths, em-dash habits. The resulting style skill produces text that's quantitatively indistinguishable from human writing.
+**Beat the AI detector.** The system identifies and corrects the statistical fingerprints that make AI-generated text detectable -- overuse of "and," artificially diverse vocabulary, missing contractions, uniform sentence lengths, em-dash habits. The resulting style skill produces text that's quantitatively indistinguishable from human writing.
 
 ## How It Works
 
 The system has two loops:
 
-**Inner loop (automated):** Generate text using a style skill, score it with an ensemble discriminator (stylometric ML classifier + reference-based LLM judge), produce detailed feedback.
+**Inner loop (automated):** Generate text using a style skill, score it with an ensemble discriminator (statistical style analysis + reference-based LLM judge), produce qualitative writing feedback.
 
 **Outer loop (agent-driven):** An AI agent reads the feedback, edits the style skill to close identified gaps, previews samples, runs evaluation, and repeats. The agent follows instructions in `program.md` -- a lightweight skill document in the style of [Karpathy's autoresearch](https://github.com/karpathy/autoresearch).
 
@@ -36,18 +36,21 @@ The system has two loops:
               ┌────────────┴────────────┐
               │                         │
        ┌──────▼──────┐          ┌──────▼───────┐
-       │ ML Classifier│          │  LLM Judge   │
-       │ (stylometric │          │ (reference-  │
-       │  features)   │          │  based, no   │
-       └──────┬──────┘          │  author name)│
-              │                  └──────┬───────┘
+       │   Style     │          │  LLM Judge   │
+       │  Distance   │          │ (reference-  │
+       │ (statistical│          │  based, no   │
+       │  analysis)  │          │  author name)│
+       └──────┬──────┘          └──────┬───────┘
+              │                         │
               └────────────┬────────────┘
                     ┌──────▼───────┐
                     │   Feedback   │ ──► Agent reads this
-                    │  (feedback.md│
-                    │  results.tsv)│
+                    │ (writing     │
+                    │  advice)     │
                     └──────────────┘
 ```
+
+The artifact being optimized is a **Markdown style skill** -- a self-contained writing guide that an LLM follows to produce text in a target style.
 
 ## Quick Start
 
@@ -102,7 +105,7 @@ auto-style-capture status --author "My Style"
 
 ### 5. Iterate
 
-The `evaluate` command writes detailed feedback to `skills/my_style/feedback.md` showing exactly what's different between your writing and the generated text. Edit the skill, snapshot, and re-evaluate:
+The `evaluate` command writes qualitative writing advice to `skills/my_style/feedback.md` -- things like "You're chaining too many clauses with 'and'" or "Not enough contractions." Edit the skill, snapshot, and re-evaluate:
 
 ```bash
 # Snapshot before editing (preserves the previous version)
@@ -113,8 +116,22 @@ auto-style-capture snapshot --author "My Style"
 
 # Re-evaluate
 auto-style-capture evaluate --author "My Style" --corpus ./corpus/my_writing/ \
-  --hypothesis "Increased contraction rate, shortened sentences"
+  --hypothesis "Added contraction guidance, broke up run-on sentences"
 ```
+
+### 6. Select the best
+
+When you're done iterating, pick the best version as your final skill:
+
+```bash
+# Auto-select best from score history
+auto-style-capture select --author "My Style"
+
+# Or manually pick a specific version
+auto-style-capture select --author "My Style" --version 3
+```
+
+The final skill is saved as `skills/my_style/skill.md` -- ready to use with any LLM.
 
 ## Blending Multiple Voices
 
@@ -136,6 +153,16 @@ auto-style-capture evaluate \
   --author "My Blend" --runs 2
 ```
 
+## Continuing Previous Runs
+
+Start from an existing skill instead of generating from scratch:
+
+```bash
+# Continue from a previous run's best skill
+auto-style-capture seed --author "My Style v2" \
+  --from-skill ./skills/my_style/skill.md
+```
+
 ## Agent-Driven Refinement
 
 The system is designed to be driven by an AI agent following `program.md`:
@@ -143,14 +170,15 @@ The system is designed to be driven by an AI agent following `program.md`:
 1. Agent reads the current style skill
 2. Previews samples with `generate` (fast, ~10s)
 3. Runs `evaluate` with a `--hypothesis` describing what changed
-4. Reads `feedback.md` for discriminator analysis
+4. Reads `feedback.md` for qualitative writing advice
 5. Edits the skill to close identified gaps
-6. Repeats until the discriminator can't distinguish real from generated (< 55% accuracy)
+6. Repeats until satisfied, then runs `select` to pick the best version
 
 Each workspace under `skills/` tracks versioned skills, score history, and feedback:
 
 ```
 skills/my_style/
+├── skill.md          # Final selected skill (the output)
 ├── skill_v0.md       # Seed (auto-generated)
 ├── skill_v1.md       # Agent's first revision
 ├── skill_v2.md       # Agent's second revision
@@ -164,20 +192,23 @@ skills/my_style/
 | Command | Purpose | Speed |
 |---------|---------|-------|
 | `seed` | Generate initial skill from corpus | ~15s |
+| `seed --from-skill` | Continue from an existing skill | Instant |
 | `generate` | Preview samples, no scoring | ~10s |
 | `evaluate` | Full scoring with feedback | ~45s |
 | `evaluate --runs 3` | Averaged scoring, more stable | ~2min |
+| `evaluate --judge-model` | Use a stronger model for the judge | ~1min |
 | `snapshot` | Version the skill before editing | Instant |
+| `select` | Pick best version as final `skill.md` | Instant |
 | `status` | See version history and scores | Instant |
 | `analyze` | Show corpus stylometric profile | Instant |
 
 ## How the Discriminator Works
 
-**ML Classifier:** Extracts ~80 stylometric features (sentence length distributions, punctuation rates, vocabulary richness, function word frequencies, readability scores) from real corpus chunks and generated text. Trains a GradientBoosting classifier to distinguish them. Classes are balanced so large corpora don't inflate accuracy. Reports which features are most distinguishing -- this is the actionable feedback that drives skill improvements.
+**Style Distance Analysis:** Extracts ~80 stylometric features (sentence length distributions, punctuation rates, vocabulary richness, function word frequencies, readability scores) from real corpus chunks and generated text. Compares distributions using statistical tests (Mann-Whitney U) and effect sizes (Cohen's d). Reports qualitative writing advice ranked by importance -- e.g., "You're chaining too many clauses with 'and'. Break compound sentences into shorter ones." Works reliably with small sample sizes, unlike a trained classifier.
 
-**LLM Judge:** Given anonymous reference passages from the corpus (no author name, no identity hints), evaluates blinded pairs of real vs generated text purely on stylistic similarity. Scores 6 dimensions: voice/tone, sentence rhythm, vocabulary, punctuation, rhetorical devices, overall authenticity. Uses structured outputs for reliable JSON scoring.
+**LLM Judge:** Given anonymous reference passages from the corpus (no author name, no identity hints), evaluates blinded A/B pairs of real vs generated text purely on stylistic similarity. References and evaluation pairs are strictly separated so the judge can't match on content. Scores 6 dimensions: voice/tone, sentence rhythm, vocabulary, punctuation, rhetorical devices, overall authenticity. Use `--judge-model` to specify a stronger model for more rigorous evaluation.
 
-**Ensemble:** Weighted average of both (default 50/50). Target is < 55% accuracy -- meaning the discriminator is barely better than a coin flip at telling real from generated.
+**Ensemble:** Weighted average of both (default 50/50). Lower is better -- 50% means the discriminator can't tell real from generated.
 
 ## What the System Learns
 
@@ -185,9 +216,9 @@ From experiments across diverse corpora, the system consistently identifies thes
 
 - **Sentence rhythm:** Humans write with more variance and positive skew in sentence length. AI defaults to uniform medium-length sentences or overuses short punchy fragments.
 - **Function word density:** Human writing has higher rates of common words like "the," "of," "it," "this." AI reaches for varied vocabulary, creating artificially high lexical richness.
-- **Punctuation fingerprint:** AI overuses em dashes and colons. Human writers rely more on commas and parentheses.
-- **Contractions:** Human writing uses ~2-3% contractions naturally. AI tends formal unless explicitly instructed.
-- **Word repetition:** Humans repeat common words freely. AI avoids repetition, searching for synonyms -- a strong classifier signal.
+- **Punctuation fingerprint:** AI overuses em dashes and semicolons. Human writers rely more on commas and parentheses.
+- **Contractions:** Human writing uses contractions naturally throughout. AI tends formal unless explicitly instructed.
+- **Word repetition:** Humans repeat common words freely. AI avoids repetition, searching for synonyms -- a strong statistical signal.
 - **"And" overuse:** LLMs chain clauses with "and" at roughly 2x the human rate. This is one of the strongest and hardest-to-fix AI tells.
 
 ## Configuration
@@ -195,12 +226,14 @@ From experiments across diverse corpora, the system consistently identifies thes
 Default model is `openai/gpt-5-mini` via [litellm](https://github.com/BerriAI/litellm). Override per command or in a config file:
 
 ```bash
-# Per command
+# Use a different model for generation
 auto-style-capture evaluate --model anthropic/claude-sonnet-4-20250514 ...
+
+# Use a stronger model just for the judge
+auto-style-capture evaluate --judge-model openai/gpt-5.1 ...
 
 # Via config file
 cp config.example.yaml config.yaml
-# Edit config.yaml with your preferred models and settings
 ```
 
-See `config.example.yaml` for all options including separate models for generation, judging, and skill updates.
+See `config.example.yaml` for all options.

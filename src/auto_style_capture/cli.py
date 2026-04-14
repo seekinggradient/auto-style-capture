@@ -96,39 +96,54 @@ def main():
 
 
 @main.command()
-@click.option("--corpus", type=click.Path(exists=True), required=True, multiple=True, help="Path to corpus directory (can specify multiple)")
+@click.option("--corpus", type=click.Path(exists=True), required=False, multiple=True, help="Path to corpus directory (can specify multiple)")
 @click.option("--author", required=True, help="Author name")
+@click.option("--from-skill", "from_skill", type=click.Path(exists=True), default=None, help="Start from an existing skill file instead of generating one")
 @click.option("--model", default="openai/gpt-5-mini", help="LLM model")
 @click.option("--verbose", "-v", is_flag=True, help="Enable debug logging")
-def seed(corpus, author, model, verbose):
+def seed(corpus, author, from_skill, model, verbose):
     """Generate an initial style skill (v0) for an author.
 
     Creates the author workspace under skills/{author}/ and generates
-    skill_v0.md from the corpus. Accepts multiple --corpus flags for
-    blended styles.
+    skill_v0.md from the corpus. Use --from-skill to continue from an
+    existing skill file instead of generating a new one.
     """
     setup_logging(verbose)
 
-    from .corpus.loader import load_corpus, load_corpora
-    from .llm.provider import LLMProvider
-    from .style_skill.templates import generate_initial_skill
-
     workspace = get_workspace(author)
-    llm = LLMProvider()
-    if len(corpus) == 1:
-        corp = load_corpus(corpus[0])
+
+    if from_skill:
+        # Copy existing skill as v0 in the new workspace
+        import shutil
+        skill_path = workspace / "skill_v0.md"
+        shutil.copy2(from_skill, skill_path)
+        console.print(f"Workspace: {workspace}/")
+        console.print(f"[bold green]Copied {from_skill} -> {skill_path}[/]")
     else:
-        corp = load_corpora(list(corpus))
-    groups = set(doc.group for doc in corp.documents)
-    console.print(f"Loaded {len(corp)} documents from {len(groups)} source(s): {', '.join(sorted(groups))}")
-    console.print(f"Workspace: {workspace}/")
-    console.print("Generating initial style skill...\n")
+        if not corpus:
+            console.print("[red]Either --corpus or --from-skill is required.[/]")
+            raise SystemExit(1)
 
-    skill = generate_initial_skill(corp, author, llm, model)
-    skill_path = workspace / "skill_v0.md"
-    skill_path.write_text(skill.content, encoding="utf-8")
+        from .corpus.loader import load_corpus, load_corpora
+        from .llm.provider import LLMProvider
+        from .style_skill.templates import generate_initial_skill
 
-    console.print(f"[bold green]Skill written to:[/] {skill_path}")
+        llm = LLMProvider()
+        if len(corpus) == 1:
+            corp = load_corpus(corpus[0])
+        else:
+            corp = load_corpora(list(corpus))
+        groups = set(doc.group for doc in corp.documents)
+        console.print(f"Loaded {len(corp)} documents from {len(groups)} source(s): {', '.join(sorted(groups))}")
+        console.print(f"Workspace: {workspace}/")
+        console.print("Generating initial style skill...\n")
+
+        skill = generate_initial_skill(corp, author, llm, model)
+        skill_path = workspace / "skill_v0.md"
+        skill_path.write_text(skill.content, encoding="utf-8")
+
+        console.print(f"[bold green]Skill written to:[/] {skill_path}")
+
     console.print(f"\nNext step: edit the skill or run evaluation:")
     console.print(f"  auto-style-capture evaluate --author \"{author}\" --corpus {corpus}")
 

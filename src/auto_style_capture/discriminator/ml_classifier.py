@@ -156,12 +156,16 @@ class MLDiscriminator:
         top_n = min(10, len(feature_gaps))
         importances = {}
         for name, real_mean, gen_mean, effect, p_val in feature_gaps[:top_n]:
-            direction = "too high" if gen_mean > real_mean else "too low"
             sig = "***" if p_val < 0.001 else "**" if p_val < 0.01 else "*"
             desc = _describe_feature(name)
+            if gen_mean > real_mean:
+                action = "USE LESS"
+                detail = f"generated={gen_mean:.4f} but should be closer to {real_mean:.4f}"
+            else:
+                action = "USE MORE"
+                detail = f"generated={gen_mean:.4f} but should be closer to {real_mean:.4f}"
             feedback_lines.append(
-                f"- **{name}** ({desc}): generated is {direction} "
-                f"(real={real_mean:.4f}, gen={gen_mean:.4f}, effect={effect:.2f}) {sig}"
+                f"- **{name}** ({desc}): {action} — {detail} (effect={effect:.2f}) {sig}"
             )
             importances[name] = effect
 

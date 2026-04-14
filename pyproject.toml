@@ -1,0 +1,33 @@
+[project]
+name = "auto-style-capture"
+version = "0.1.0"
+description = "GAN-inspired adversarial loop for emulating an author's writing style"
+requires-python = ">=3.11"
+dependencies = [
+    "litellm>=1.40",
+    "click>=8.1",
+    "pydantic>=2.0",
+    "pydantic-settings>=2.0",
+    "pyyaml>=6.0",
+    "scikit-learn>=1.4",
+    "numpy>=1.26",
+    "spacy>=3.7",
+    "nltk>=3.8",
+    "rich>=13.0",
+    "structlog>=24.0",
+    "matplotlib>=3.8",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=4.0",
+    "ruff>=0.3",
+]
+
+[project.scripts]
+auto-style-capture = "auto_style_capture.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

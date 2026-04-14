@@ -76,7 +76,21 @@ The corpus lives separately under `corpus/{author}/`.
    - If **improved**: continue to the next iteration (step 1 again).
    - If **worse or equal**: consider reverting or trying a different approach.
 
-8. **Repeat from step 1. Do not stop until the user interrupts or the score drops below 55%.**
+8. **Repeat from step 1. Do not stop until the user interrupts or you've completed your allotted iterations.**
+
+## Finishing Up
+
+When you're done iterating, select the best version and save it as the final output:
+
+```
+auto-style-capture select --author "{Author Name}"
+```
+
+This picks the version with the lowest ensemble score from results.tsv and copies it to `skills/{author}/skill.md` -- the final, recommended skill. If you want to select a specific version instead:
+
+```
+auto-style-capture select --author "{Author Name}" --version 4
+```
 
 ## Commands Reference
 

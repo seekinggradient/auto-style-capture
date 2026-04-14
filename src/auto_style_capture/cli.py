@@ -344,6 +344,63 @@ def snapshot(author):
 
 @main.command()
 @click.option("--author", required=True, help="Author name")
+@click.option("--version", "version_num", default=None, type=int, help="Select a specific version (default: best from results.tsv)")
+def select(author, version_num):
+    """Select the best skill version as the final output.
+
+    Reads results.tsv to find the version with the lowest ensemble
+    accuracy (hardest to distinguish from real), and copies it to
+    skill.md -- the recommended skill to use.
+    """
+    workspace = get_workspace(author)
+
+    if version_num is not None:
+        # Manually select a specific version
+        source = workspace / f"skill_v{version_num}.md"
+        if not source.exists():
+            console.print(f"[red]skill_v{version_num}.md not found in {workspace}/[/]")
+            raise SystemExit(1)
+        reason = f"manually selected v{version_num}"
+    else:
+        # Auto-select best from results.tsv
+        results_path = workspace / "results.tsv"
+        if not results_path.exists():
+            console.print("[red]No results.tsv found. Run evaluate first.[/]")
+            raise SystemExit(1)
+
+        best_version = None
+        best_score = float("inf")
+        with open(results_path) as f:
+            reader = csv.reader(f, delimiter="\t")
+            next(reader)  # skip header
+            for row in reader:
+                if len(row) >= 3:
+                    skill_name = row[1]
+                    score = float(row[2])
+                    if score < best_score:
+                        best_score = score
+                        best_version = skill_name
+
+        if best_version is None:
+            console.print("[red]No results found in results.tsv[/]")
+            raise SystemExit(1)
+
+        source = workspace / best_version
+        if not source.exists():
+            console.print(f"[red]{best_version} not found in {workspace}/[/]")
+            raise SystemExit(1)
+        reason = f"best ensemble score: {best_score:.1%}"
+
+    dest = workspace / "skill.md"
+    shutil.copy2(source, dest)
+    console.print(f"[bold green]Selected:[/] {source.name} -> skill.md ({reason})")
+    console.print(f"\nFinal skill: {dest}")
+    console.print(f"Use it with: auto-style-capture generate --author \"{author}\" --prompt \"...\"")
+
+
+
+@main.command()
+@click.option("--author", required=True, help="Author name")
 def status(author):
     """Show the current state of an author workspace."""
     workspace = get_workspace(author)

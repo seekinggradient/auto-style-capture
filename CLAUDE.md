@@ -56,9 +56,9 @@ auto-style-capture run --corpus ./corpus/paul_graham/ --author "Paul Graham" --m
 - Default model: `openai/gpt-5-mini` (configurable via `--model` or `config.yaml`)
 - All models specified in litellm format: `provider/model-name`
 
-## IMPORTANT RULE: Do NOT Read Corpus Files
+## IMPORTANT RULE: Do NOT Read Corpus Files (for AI agents)
 
-Do NOT read any files under `corpus/`. You must learn about the author's style ONLY through the seed skill and the discriminator feedback in `skills/{author}/feedback.md`. Reading the corpus directly would let you copy verbatim phrases rather than learning genuine style patterns -- that is cheating. The evaluation harness reads the corpus; you do not. If you have already read corpus files, do not use any specific phrases or sentences you saw there in your skill edits. Focus on structural and stylistic patterns from the feedback instead.
+When an AI agent is driving the refinement loop, it must NOT read any files under `corpus/`. The agent must learn about the author's style ONLY through the seed skill and the discriminator feedback in `skills/{author}/feedback.md`. Reading the corpus directly would let the agent copy verbatim phrases rather than learning genuine style patterns -- that defeats the purpose of the adversarial loop. The evaluation harness reads the corpus; the agent does not.
 
 ## Key Design Decisions
 

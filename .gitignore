@@ -17,6 +17,7 @@ corpus/
 blended_human/
 scripts/
 examples/
+.claude/
 .ruff_cache/
 .pytest_cache/
 .mypy_cache/

@@ -16,11 +16,11 @@ No model fine-tuning required -- the output is a Markdown style guide that any L
 
 ## How It Works
 
-The system has two loops:
+An AI coding agent drives a GAN-inspired adversarial loop. The agent follows instructions in [`program.md`](program.md) -- a self-contained agent program in the style of [Karpathy's autoresearch](https://github.com/karpathy/autoresearch).
 
-**Inner loop (automated):** Generate text using a style skill, score it with an ensemble discriminator (statistical style analysis + reference-based LLM judge), produce qualitative writing feedback.
+**Evaluation (the discriminator):** Generate text using a style skill, score it with an ensemble discriminator (statistical style analysis + reference-based LLM judge), produce qualitative writing feedback.
 
-**Outer loop (agent-driven):** An AI agent reads the feedback, edits the style skill to close identified gaps, previews samples, runs evaluation, and repeats. The agent follows instructions in `program.md` -- a lightweight skill document in the style of [Karpathy's autoresearch](https://github.com/karpathy/autoresearch).
+**Refinement (the agent):** The agent reads the feedback, edits the style skill to close identified gaps, previews samples, runs evaluation, and repeats. The agent only touches skill files -- it cannot read the corpus or modify source code. See [Agent-Driven Refinement](#agent-driven-refinement-recommended) for the full workflow.
 
 ```
                     ┌──────────────┐
@@ -163,18 +163,32 @@ auto-style-capture seed --author "My Style v2" \
   --from-skill ./skills/my_style/skill.md
 ```
 
-## Agent-Driven Refinement
+## Agent-Driven Refinement (Recommended)
 
-The system is designed to be driven by an AI agent following `program.md`:
+The recommended way to use this system is with an AI coding agent (Claude Code, Cursor, etc.) driving the refinement loop. The agent follows instructions in [`program.md`](program.md) -- a self-contained agent program that tells it exactly what to do.
 
-1. Agent reads the current style skill
-2. Previews samples with `generate` (fast, ~10s)
-3. Runs `evaluate` with a `--hypothesis` describing what changed
-4. Reads `feedback.md` for qualitative writing advice
-5. Edits the skill to close identified gaps
-6. Repeats until satisfied, then runs `select` to pick the best version
+### How it works
 
-Each workspace under `skills/` tracks versioned skills, score history, and feedback:
+Point your agent at `program.md` and give it an author name and corpus path. The agent then runs an autonomous experiment loop:
+
+1. **Seed** -- generate an initial style skill from the corpus (`seed`)
+2. **Snapshot** -- version the current skill before editing (`snapshot`)
+3. **Edit** -- modify the skill to address feedback from the previous evaluation
+4. **Preview** -- generate a few samples to sanity-check changes (`generate`)
+5. **Evaluate** -- run the full discriminator and get scored feedback (`evaluate --hypothesis "..."`)
+6. **Read feedback** -- check `skills/{author}/feedback.md` for qualitative writing advice and `results.tsv` for score history
+7. **Repeat** from step 2 until the discriminator can't tell real from generated (ensemble accuracy below 55%)
+8. **Select** -- pick the best-scoring version as the final output (`select`)
+
+The agent only edits skill files under `skills/{author}/`. It reads feedback and scores from the same directory. It runs CLI commands to generate, evaluate, and snapshot. That's the entire interface.
+
+### What the agent must NOT do
+
+The agent must **not read any files under `corpus/`** and must **not modify any code under `src/`**. The corpus restriction is critical to the adversarial design -- if the agent reads the corpus directly, it can copy verbatim phrases instead of learning genuine style patterns, which defeats the purpose. The agent learns about the target style only through the seed skill and the discriminator's feedback. The evaluation harness reads the corpus; the agent does not.
+
+### Workspace layout
+
+Each author gets a workspace under `skills/` that tracks everything:
 
 ```
 skills/my_style/
@@ -185,6 +199,14 @@ skills/my_style/
 ├── feedback.md       # Latest evaluation feedback
 ├── results.tsv       # Full score history with hypotheses
 └── topics.json       # Cached topic prompts
+```
+
+### Fully automated pipeline
+
+There's also an `auto-style-capture run` command that runs a closed-loop pipeline without an agent -- it generates, evaluates, and updates the skill automatically for a set number of iterations. The agent-driven approach is preferred because the agent can make more creative and context-aware edits to the skill, but `run` is useful for unattended experiments or as a baseline:
+
+```bash
+auto-style-capture run --corpus ./corpus/my_writing/ --author "My Style" --max-iterations 10
 ```
 
 ## CLI Reference
@@ -201,6 +223,7 @@ skills/my_style/
 | `select` | Pick best version as final `skill.md` | Instant |
 | `status` | See version history and scores | Instant |
 | `analyze` | Show corpus stylometric profile | Instant |
+| `run` | Full automated pipeline (no agent) | ~10min |
 
 ## How the Discriminator Works
 
